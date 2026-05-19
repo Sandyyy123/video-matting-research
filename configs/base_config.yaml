@@ -1,0 +1,116 @@
+model:
+  arch: "resnet50"           # backbone: resnet50 | swin_t | convnext_s
+  pretrained: true
+  temporal_hidden_dim: 128
+  temporal_num_layers: 2
+  decoder_channels: [256, 128, 64, 32]
+  output_activation: "sigmoid"
+
+training:
+  epochs: 120
+  batch_size: 8
+  num_workers: 4
+  seed: 42
+  mixed_precision: true
+  gradient_clip_norm: 1.0
+
+optimizer:
+  type: "adamw"
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+
+scheduler:
+  type: "cosine_with_warmup"
+  warmup_epochs: 5
+  min_lr: 1.0e-6
+
+losses:
+  temporal_consistency:
+    weight: 0.3
+    warp_loss_type: "l1"
+  boundary_refinement:
+    weight: 0.4
+    edge_dilation_px: 3
+    edge_weight_factor: 5.0
+  trimap_guided:
+    weight: 1.0
+    unknown_region_weight: 2.0
+    bce_weight_fg_bg: 0.5
+  uncertainty_weighting: true   # Kendall et al. multi-task weighting
+
+curriculum:
+  stages:
+    - name: "synthetic_clean"
+      warmup_epochs: 10
+      noise_level: 0.0
+      motion_blur: false
+      synthetic_ratio: 1.0
+      real_ratio: 0.0
+    - name: "synthetic_noisy"
+      warmup_epochs: 15
+      noise_level: 0.05
+      motion_blur: true
+      synthetic_ratio: 1.0
+      real_ratio: 0.0
+    - name: "real_easy"
+      warmup_epochs: 20
+      noise_level: 0.02
+      motion_blur: false
+      synthetic_ratio: 0.7
+      real_ratio: 0.3
+    - name: "real_hard"
+      warmup_epochs: null        # runs until total epoch budget exhausted
+      noise_level: 0.05
+      motion_blur: true
+      synthetic_ratio: 0.6
+      real_ratio: 0.4
+  hard_example_replay_ratio: 0.15   # fraction of each batch from hard-example buffer
+
+data:
+  synthetic_ratio: 0.6
+  real_ratio: 0.4
+  image_size: [512, 512]
+  temporal_window: 5             # frames per clip during training
+  datasets:
+    synthetic:
+      - name: "adobe_composition_1k"
+        root: "data/adobe_comp1k"
+        weight: 0.5
+      - name: "distinctions_646"
+        root: "data/distinctions646"
+        weight: 0.3
+      - name: "am2k"
+        root: "data/am2k"
+        weight: 0.2
+    real:
+      - name: "videomatte240k"
+        root: "data/videomatte240k"
+        weight: 0.6
+      - name: "backgrounds_real"
+        root: "data/backgrounds"
+        weight: 0.4
+  augmentation:
+    horizontal_flip: 0.5
+    random_crop: true
+    color_jitter:
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.1
+      hue: 0.05
+    random_erasing: 0.1
+
+hard_example_sampler:
+  buffer_size: 5000
+  loss_window: 10                # epochs over which loss history is averaged
+  upsample_threshold_std: 1.0   # samples with loss > mean + N*std are upsampled
+  upsample_multiplier: 3.0
+
+logging:
+  wandb_project: "video-matting"
+  wandb_entity: null             # set via env or CLI
+  log_interval_steps: 50
+  val_interval_epochs: 5
+  save_best_metric: "val/sad"    # sum of absolute differences on validation alpha
+  checkpoint_dir: "checkpoints"
+  keep_last_n_checkpoints: 3
