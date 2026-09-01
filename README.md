@@ -1,3 +1,7 @@
+> **⚠️ Proprietary — All Rights Reserved.** © 2026 Sandeep Grover. This repository is licensed to Sandeep Grover and may **not** be used, run, copied, modified, distributed, or used to train models without prior written permission. Public visibility does not grant a license. See [LICENSE](LICENSE).
+
+---
+
 # Video Matting Experimentation Framework
 
 A modular PyTorch research codebase for training and ablating video alpha matting models. Covers custom loss design, curriculum learning, hard-example mining, temporal consistency via recurrent heads, and structured ablation tooling.
